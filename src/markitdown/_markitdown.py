@@ -791,7 +791,8 @@ class PptxConverter(HtmlConverter):
             return None
 
         md_content = ""
-
+        
+        # Open with explicit encoding handling
         presentation = pptx.Presentation(local_path)
         slide_num = 0
         for slide in presentation.slides:
@@ -803,14 +804,12 @@ class PptxConverter(HtmlConverter):
             for shape in slide.shapes:
                 # Pictures
                 if self._is_picture(shape):
-                    # https://github.com/scanny/python-pptx/pull/512#issuecomment-1713100069
                     alt_text = ""
                     try:
                         alt_text = shape._element._nvXxPr.cNvPr.attrib.get("descr", "")
                     except Exception:
                         pass
 
-                    # A placeholder name
                     filename = re.sub(r"\W", "", shape.name) + ".jpg"
                     md_content += (
                         "\n!["
@@ -827,27 +826,23 @@ class PptxConverter(HtmlConverter):
                     for row in shape.table.rows:
                         html_table += "<tr>"
                         for cell in row.cells:
+                            cell_text = cell.text
                             if first_row:
-                                html_table += "<th>" + html.escape(cell.text) + "</th>"
+                                html_table += f"<th>{html.escape(cell_text)}</th>"
                             else:
-                                html_table += "<td>" + html.escape(cell.text) + "</td>"
+                                html_table += f"<td>{html.escape(cell_text)}</td>"
                         html_table += "</tr>"
                         first_row = False
                     html_table += "</table></body></html>"
-                    md_content += (
-                        "\n" + self._convert(html_table).text_content.strip() + "\n"
-                    )
-
-                # Charts
-                if shape.has_chart:
-                    md_content += self._convert_chart_to_markdown(shape.chart)
+                    md_content += "\n" + self._convert(html_table).text_content.strip() + "\n"
 
                 # Text areas
                 elif shape.has_text_frame:
+                    text_content = shape.text_frame.text
                     if shape == title:
-                        md_content += "# " + shape.text.lstrip() + "\n"
+                        md_content += f"# {text_content.lstrip()}\n"
                     else:
-                        md_content += shape.text + "\n"
+                        md_content += f"{text_content}\n"
 
             md_content = md_content.strip()
 
@@ -1262,7 +1257,6 @@ class ZipConverter(DocumentConverter):
         )
         extraction_dir = os.path.normpath(
             os.path.join(os.path.dirname(local_path), extracted_zip_folder_name)
-        )
         md_content = f"Content from the zip file `{os.path.basename(local_path)}`:\n\n"
 
         try:
